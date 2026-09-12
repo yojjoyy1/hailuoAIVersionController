@@ -1,0 +1,40 @@
+# 時光本
+
+給**不懂程式的人**跟 AI 一起改資料夾時用的本地版本控制。支援 **Mac 與 Windows**，AI Agent 可選 **Cursor / Claude / Codex**。
+
+## 你怎麼用（網頁）
+
+- **Mac**：雙擊 `開啟時光本.command`
+- **Windows**：雙擊 `開啟時光本.bat`（需已安裝 Python 3，並勾選 Add python.exe to PATH）
+
+瀏覽器會打開 `http://127.0.0.1:8765`。
+
+1. 按「開始記錄」→ **瀏覽** 選資料夾（不必手打路徑）
+2. 選這個資料夾主要用哪一種 AI：**Cursor、Claude 或 Codex**（會寫入對應 SKILL）
+3. 跟 AI 工作時可按「開始對話紀錄」
+4. 告一段落按「記住這次改動」
+5. 時間軸可回頭看、互相比對、切換回去
+
+只在你這台電腦、只聽本機網址。
+
+## AI 怎麼用
+
+選好 Agent 後，會在資料夾寫入：
+
+| Agent | SKILL 位置 |
+| --- | --- |
+| Cursor | `.cursor/skills/avc-shiguangben/` |
+| Claude | `.claude/skills/avc-shiguangben/` |
+| Codex | `.agents/skills/avc-shiguangben/` |
+
+Agent 請在該資料夾執行 `.avc/avc.py`（Windows 也可用 `.avc\avc.cmd`）。
+
+```text
+# Mac / Linux
+python3 .avc/avc.py status
+
+# Windows
+py -3 .avc\avc.py status
+```
+
+每個被記錄的資料夾有 `.avc/avc.sqlite`。專案列表在使用者目錄下的 `.avc/registry.sqlite`。
