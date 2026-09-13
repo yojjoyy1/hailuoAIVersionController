@@ -579,6 +579,16 @@ def get_session(root: Path, session_id: int) -> dict:
                 (session_id,),
             ).fetchall()
         ]
+        # For an in-progress conversation, attach what has changed since it began
+        # so the "對話" view can show the AI's edits directly (baseline → now).
+        data["change_summary"] = None
+        if data["ended_at"] is None and data["baseline_record_id"]:
+            try:
+                old = record_file_map(conn, data["baseline_record_id"])
+                new = working_map(root)
+                data["change_summary"] = diff_maps(old, new)
+            except Exception:
+                data["change_summary"] = None
         return data
     finally:
         conn.close()

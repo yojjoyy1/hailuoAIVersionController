@@ -27,14 +27,14 @@
 | Claude | `.claude/skills/avc-shiguangben/` |
 | Codex | `.agents/skills/avc-shiguangben/` |
 
-Agent 請在該資料夾執行 `.avc/avc.py`（Windows 也可用 `.avc\avc.cmd`）。
+Agent 請在該資料夾執行對應的啟動檔。
 
 ```text
 # Mac / Linux
 python3 .avc/avc.py status
 
-# Windows
-py -3 .avc\avc.py status
+# Windows（自動使用打包好的 avc.exe，找不到才退回 python，不需要 py）
+.avc\avc.cmd status
 ```
 
 每個被記錄的資料夾有 `.avc/avc.sqlite`。專案列表在使用者目錄下的 `.avc/registry.sqlite`。

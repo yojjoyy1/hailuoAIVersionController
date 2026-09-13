@@ -3,13 +3,13 @@ from __future__ import annotations
 import json
 import mimetypes
 import posixpath
+import sys
 import traceback
 import urllib.parse
-import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from avc.platform_util import pick_folder, platform_info
+from avc.platform_util import open_url, pick_folder, platform_info
 from avc.registry import get_project, list_projects, register_project, remove_project
 from avc.theme import DEFAULT_THEME, load_theme, reset_theme, save_theme
 from avc.store import (
@@ -35,7 +35,17 @@ from avc.store import (
     clear_database,
 )
 
-WEB_DIR = Path(__file__).resolve().parent / "web"
+def _web_dir() -> Path:
+    # When bundled by PyInstaller, static files are extracted under sys._MEIPASS.
+    if getattr(sys, "frozen", False):
+        base = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
+        bundled = base / "avc" / "web"
+        if bundled.is_dir():
+            return bundled
+    return Path(__file__).resolve().parent / "web"
+
+
+WEB_DIR = _web_dir()
 
 
 def json_body(handler: BaseHTTPRequestHandler) -> dict:
@@ -285,7 +295,7 @@ def serve(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True) 
     url = f"http://{host}:{port}/"
     print(f"時光本已在本機開啟：{url}")
     if open_browser:
-        webbrowser.open(url)
+        open_url(url)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

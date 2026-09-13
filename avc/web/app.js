@@ -516,21 +516,42 @@ function projectView() {
 
 function nowTab() {
   const st = state.status || { added: [], removed: [], modified: [], change_count: 0 };
-  return h("div", { class: "layout" },
-    h("aside", { class: "card" },
-      h("h3", {}, "對照基準"),
-      pSafe(`目前站在「${st.current_label || "起始"}」之後。下面是還沒記住的改動。`),
-      h("div", { class: "field" },
-        h("span", {}, "這個資料夾使用的 AI Agent（會寫入對應的 SKILL）"),
-        projectAgentControls(),
-      ),
-      h("div", { class: "row" },
-        h("button", { class: "btn primary", onClick: () => { state.modal = modalSave(); render(); } }, "記住這次"),
-      ),
-      h("div", { class: "row", style: "margin-top:16px" },
-        h("button", { class: "btn danger", onClick: () => { state.modal = modalClear(); render(); } }, "清空所有紀錄"),
-      ),
+  const aside = h("aside", { class: "card" },
+    h("h3", {}, "對照基準"),
+    pSafe(`目前站在「${st.current_label || "起始"}」之後。`),
+    h("div", { class: "field" },
+      h("span", {}, "這個資料夾使用的 AI Agent（會寫入對應的 SKILL）"),
+      projectAgentControls(),
     ),
+    state.project.active_session_id ? null : h("div", { class: "row" },
+      h("button", { class: "btn primary", onClick: () => { state.modal = modalSave(); render(); } }, "記住這次"),
+    ),
+    h("div", { class: "row", style: "margin-top:16px" },
+      h("button", { class: "btn danger", onClick: () => { state.modal = modalClear(); render(); } }, "清空所有紀錄"),
+    ),
+  );
+  // While an AI 對話 is running, its edits belong to that conversation — they show
+  // in「對話」and「紀錄時間軸」, not here. "現在的改動" is only for your own manual edits.
+  if (state.project.active_session_id) {
+    return h("div", { class: "layout" },
+      aside,
+      h("section", { class: "card" },
+        h("h3", {}, "目前有 AI 對話進行中"),
+        pSafe("這些改動屬於目前的 AI 對話，會記在「對話」與「紀錄時間軸」裡。「現在的改動」只顯示你自己手動改的東西。"),
+        h("div", { class: "row" },
+          h("button", { class: "btn primary", onClick: async () => {
+            state.tab = "talk";
+            try {
+              state.session = await api(`/api/projects/${state.project.id}/sessions/${state.project.active_session_id}`);
+            } catch (_) {}
+            render();
+          } }, "到「對話」看 AI 的改動"),
+        ),
+      ),
+    );
+  }
+  return h("div", { class: "layout" },
+    aside,
     h("section", { class: "card" },
       h("h3", {}, st.change_count ? `有 ${st.change_count} 處尚未記住` : "沒有未紀錄的改動"),
       changesBlock(st),
@@ -543,7 +564,9 @@ function timelineTab() {
   return h("div", { class: "layout" },
     h("aside", { class: "timeline" },
       ...visible.map((r) => h("button", {
-        class: "t-item" + (state.project.current_record_id === r.id ? " current" : ""),
+        class: "t-item"
+          + (state.record && state.record.id === r.id ? " selected" : "")
+          + (state.project.current_record_id === r.id ? " current" : ""),
         onClick: async () => {
           state.record = await api(`/api/projects/${state.project.id}/records/${r.id}`);
           render();
@@ -648,6 +671,12 @@ function sessionDetail() {
         render();
       } }, "看對話前 → 現在的改動"),
     ),
+    !s.ended_at && s.change_summary ? h("div", {},
+      h("h4", {}, s.change_summary.change_count
+        ? `這次對話目前改了 ${s.change_summary.change_count} 個檔`
+        : "這次對話目前還沒有檔案改動"),
+      changesBlock(s.change_summary),
+    ) : null,
     h("h4", {}, "對話內容"),
     ...(s.messages || []).length ? s.messages.map((m) => h("div", { class: "msg " + m.role },
       h("strong", {}, roleName[m.role] || m.role),
@@ -822,6 +851,12 @@ async function tickWatch() {
       if (!dbChanged) {
         const y = window.scrollY;
         state.status = await api(`/api/projects/${state.project.id}/status`);
+        // Keep the in-progress 對話's change list fresh as the AI edits files.
+        if (state.session && state.session.id === pulse.active_session_id && !state.session.ended_at) {
+          try {
+            state.session = await api(`/api/projects/${state.project.id}/sessions/${state.session.id}`);
+          } catch (_) {}
+        }
         render();
         window.scrollTo(0, y);
         return;

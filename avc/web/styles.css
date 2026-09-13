@@ -285,6 +285,16 @@ a {
   box-shadow: inset 4px 0 0 var(--accent-2);
 }
 
+.t-item.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* Both the record you're viewing and the folder's current state: show both cues. */
+.t-item.selected.current {
+  box-shadow: 0 0 0 2px var(--accent), inset 4px 0 0 var(--accent-2);
+}
+
 .t-item .label {
   font-weight: 700;
 }

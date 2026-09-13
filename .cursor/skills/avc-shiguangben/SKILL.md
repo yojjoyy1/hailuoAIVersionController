@@ -1,6 +1,6 @@
 ---
 name: avc-shiguangben
-description: Records AI collaboration sessions, folder file changes, tagged snapshots, diffs, and restores using the local 時光本 (avc) CLI and SQLite. Use when starting or ending an AI work session, saving a labeled checkpoint, comparing or restoring folder states, or when the user mentions 時光本, 版本控制, 紀錄, 標籤, 還原, or avc. Works with Cursor, Claude Code, and Codex on macOS and Windows.
+description: Local version control (時光本 / avc) for a tracked folder. IMPORTANT — use this skill PROACTIVELY and AUTOMATICALLY whenever you are about to create, modify, rename, or delete ANY file inside a folder tracked by 時光本 (its root has a .avc/ folder or .avc/avc.sqlite): start a conversation session BEFORE editing and save AFTER, even if the user never mentions 時光本. Also use it to start or end a work session, save a labeled snapshot, diff or restore folder states, or when the user mentions 時光本, 版本控制, 紀錄, 標籤, 還原, or avc. Works with Cursor, Claude Code, and Codex on Windows and macOS.
 ---
 
 # 時光本（AI 協作版本控制）
@@ -10,40 +10,47 @@ description: Records AI collaboration sessions, folder file changes, tagged snap
 目前這個專案設定的 AI Agent：**Cursor**
 你正在 Cursor。`--source` 填目前聊天標題。專案 skill 在 `.cursor/skills/avc-shiguangben/`。
 
+> ⚠️ **核心規則**：只要這個資料夾有被時光本記錄（根目錄有 `.avc/`），你在**動任何檔案（新增／修改／改名／刪除）之前**，就要先確保有一個進行中的對話 session（沒有就先 `session start`），做完後 `save`，**即使使用者沒有提到時光本、只說「幫我改 X／建立 Y」也一樣**。這樣使用者網頁才會把你的改動自動歸到「對話」與「紀錄時間軸」；沒開 session 就改檔，會被當成人工改動、只出現在「現在的改動」。詳見下方「何時一定要做」。
+
 在**被記錄的資料夾**執行（該資料夾裡會有 `.avc/avc.py`）：
 
 ```text
-python3 .avc/avc.py -p . status
+.avc\avc.cmd -p . status
 ```
 
-Windows 則用：`py -3 .avc\avc.py -p . status`
+Mac / Linux 則用：`python3 .avc/avc.py -p . status`
 
-若專案裡還沒有 `.avc/avc.py`，把時光本安裝目錄加入模組路徑後執行（安裝目錄：`/Users/linxinyi/Desktop/AI版本控制工具`）：
+若專案裡還沒有那個啟動檔，就用「時光本」主程式（**路徑請換成你自己電腦上的位置，不要沿用別人的使用者名稱**）：
 
 ```text
-/Library/Developer/CommandLineTools/usr/bin/python3 -m avc -p <專案資料夾> status
+# 打包版：把 <你的時光本資料夾> 換成實際路徑
+<你的時光本資料夾>\dist\avc.exe -p <專案資料夾> status
+# 原始碼版：先切到你的時光本資料夾再執行
+python -m avc -p <專案資料夾> status
 ```
 
 輸出皆為 JSON。stderr 若為 `{"error": ...}`，先處理錯誤。
 
-Windows 請用 PowerShell 或 Windows Terminal；指令是 `py -3` 或 `python`，不一定有 `python3`。
+Windows 用 PowerShell 或 Windows Terminal 執行 `.avc\avc.cmd`：它會自動找到時光本主程式（打包好的 .exe）或 `python`，不需要 `py`。
 Mac / Linux 優先 `python3`。路徑含空白要加引號。
 
 ## 何時一定要做
 
-開始改這個資料夾的檔案之前：
+**任何會改到這個資料夾檔案的任務都適用**（新增、修改、改名、刪除；即使使用者只說「幫我改 X／建立 Y」而沒提到時光本）。動手改檔**之前**：
 
 1. 確認已 `init`（有 `.avc/avc.sqlite`）。沒有就 `init --name "..."`，`--agent cursor`。
-2. `session start --title "..." --agent cursor`，`--source` 填目前對話名稱。
-3. 用 `note` 寫入使用者這次的請求（可摘要）。
-4. 工作結束或使用者要「記住」：`status` → `save --label --note`。
-5. 對話告一段落：`session end`。
+2. 先 `status`，看回傳的 `active_session_id`：**若是 null（沒有進行中的對話），一定要先** `session start --title "<這次要做的事>" --source "<目前對話名稱>" --agent cursor`。
+3. 用 `note --role user` 寫入使用者這次的請求（可摘要）。
+4. 改完檔、或使用者說「記住」：`status` → `save --label "<看得懂的名字>" --note "<改了什麼>"`。
+5. 這輪工作結束：`session end`。
+
+沒有先開 session 就改檔 → 使用者網頁會當成人工改動、只顯示在「現在的改動」；有開 session 才會自動同步到「對話」與「紀錄時間軸」。
 
 使用者要回頭、切換、比對、還原時，用 `list` / `diff` / `restore`，不要改用 git（除非使用者明確要 git）。
 
 ## 指令
 
-把 `AVC` 換成 `.avc/avc.py`（在專案內）或 `/Library/Developer/CommandLineTools/usr/bin/python3 -m avc`：
+把 `AVC` 換成 `.avc\avc.cmd`（在專案內，建議用這個）或主程式 `python -m avc`（在你自己的時光本資料夾）：
 
 ```text
 AVC init --name "專案名稱" --agent cursor

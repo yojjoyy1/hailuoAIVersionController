@@ -181,14 +181,33 @@ def cmd_web(args) -> int:
     from pathlib import Path
 
     from avc.registry import list_projects
-    from avc.skillpack import install_tool_repo_skills, write_bootstrap
+    from avc.skillpack import (
+        install_project_skill,
+        install_tool_repo_skills,
+        refresh_existing_user_skills,
+        write_bootstrap,
+    )
     from avc.web import serve
 
     install_tool_repo_skills()
+    # Keep already-installed user-level skills in sync with this build so the AI
+    # never follows stale instructions (e.g. a missing `py` launcher on Windows).
+    try:
+        refresh_existing_user_skills()
+    except Exception:
+        pass
     for item in list_projects():
+        root = Path(item["root"])
         try:
-            write_bootstrap(Path(item["root"]))
+            write_bootstrap(root)
         except OSError:
+            pass
+        # Refresh each project's SKILL.md so the AI-side instructions match this
+        # build (e.g. use .avc\avc.cmd instead of a missing `py` launcher).
+        try:
+            info = project_info(root)
+            install_project_skill(root, info.get("agent") or "cursor")
+        except Exception:
             pass
     serve(host=args.host, port=args.port, open_browser=not args.no_open)
     return 0
@@ -304,6 +323,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> None:
     enable_utf8()
+    if argv is None:
+        argv = sys.argv[1:]
+    # Double-clicking the packaged .exe passes no arguments: default to the web UI.
+    if not argv:
+        argv = ["web"]
     parser = build_parser()
     args = parser.parse_args(argv)
     try:

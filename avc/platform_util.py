@@ -50,6 +50,24 @@ def python_invocation_text() -> str:
     return " ".join(quote_cmd(p) for p in parts)
 
 
+def is_frozen() -> bool:
+    return bool(getattr(sys, "frozen", False))
+
+
+def avc_command_text() -> str:
+    """Portable way to refer to the tool in docs / SKILL files.
+
+    Never bake in a machine-specific absolute path (it would contain this
+    computer's user name), because the project is shared with other people whose
+    paths differ. Inside a tracked folder the relative launcher
+    (``.avc/avc.cmd`` or ``.avc/avc.py``) is always preferred; this is only the
+    generic fallback form.
+    """
+    if is_frozen():
+        return "avc.exe"
+    return "python -m avc"
+
+
 def quote_cmd(part: str) -> str:
     if os_kind() == "windows" and (" " in part or "&" in part):
         return f'"{part}"'
@@ -83,20 +101,35 @@ def pick_folder(prompt: str = "選擇要記錄的資料夾") -> str | None:
             return None
         return proc.stdout.strip().rstrip("/")
     if kind == "windows":
+        # Launched from a background/console process (or the packaged .exe), a bare
+        # FolderBrowserDialog opens *behind* the browser window and never gets focus,
+        # so the button looks dead. Own it with a hidden TopMost form so it comes to
+        # the front, and activate that form right before showing the dialog.
         ps = f"""
 Add-Type -AssemblyName System.Windows.Forms
+[void][System.Windows.Forms.Application]::EnableVisualStyles()
+$owner = New-Object System.Windows.Forms.Form
+$owner.TopMost = $true
+$owner.ShowInTaskbar = $false
+$owner.StartPosition = 'CenterScreen'
+$owner.Opacity = 0
+$owner.Show()
+$owner.Activate()
 $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
 $dialog.Description = '{prompt}'
 $dialog.ShowNewFolderButton = $true
-[void][System.Windows.Forms.Application]::EnableVisualStyles()
-if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {{
+$result = $dialog.ShowDialog($owner)
+$owner.Close()
+if ($result -eq [System.Windows.Forms.DialogResult]::OK) {{
     [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
     Write-Output $dialog.SelectedPath
 }}
 """
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         proc = subprocess.run(
             ["powershell", "-STA", "-NoProfile", "-Command", ps],
             capture_output=True,
+            creationflags=creationflags,
         )
         if proc.returncode != 0:
             return None
@@ -128,6 +161,66 @@ def _tk_folder(prompt: str) -> str | None:
     chosen = filedialog.askdirectory(title=prompt)
     root.destroy()
     return chosen or None
+
+
+def _win_app_path(exe_name: str) -> Path | None:
+    """Look up an executable via the Windows 'App Paths' registry key."""
+    try:
+        import winreg
+    except ImportError:
+        return None
+    key = rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{exe_name}"
+    for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        try:
+            with winreg.OpenKey(hive, key) as k:
+                value, _ = winreg.QueryValueEx(k, None)
+        except OSError:
+            continue
+        if value:
+            p = Path(value.strip('"'))
+            if p.exists():
+                return p
+    return None
+
+
+def _find_windows_browser(exe_name: str, subdirs: list[str]) -> Path | None:
+    found = _win_app_path(exe_name)
+    if found:
+        return found
+    roots = [
+        os.environ.get("ProgramFiles", r"C:\Program Files"),
+        os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+        os.environ.get("LOCALAPPDATA", ""),
+    ]
+    for root in roots:
+        if not root:
+            continue
+        for sub in subdirs:
+            candidate = Path(root) / sub / exe_name
+            if candidate.exists():
+                return candidate
+    return None
+
+
+def open_url(url: str) -> None:
+    """Open the app in a browser. On Windows prefer Chrome, then Edge, then the
+    system default; elsewhere use the default browser."""
+    if os_kind() == "windows":
+        preferences = [
+            ("chrome.exe", [r"Google\Chrome\Application"]),
+            ("msedge.exe", [r"Microsoft\Edge\Application"]),
+        ]
+        for exe_name, subdirs in preferences:
+            exe = _find_windows_browser(exe_name, subdirs)
+            if exe:
+                try:
+                    subprocess.Popen([str(exe), url])
+                    return
+                except OSError:
+                    continue
+    import webbrowser
+
+    webbrowser.open(url)
 
 
 def platform_info() -> dict:
