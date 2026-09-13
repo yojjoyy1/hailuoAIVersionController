@@ -15,10 +15,10 @@ description: Local version control (時光本 / avc) for a tracked folder. IMPOR
 在**被記錄的資料夾**執行（該資料夾裡會有 `.avc/avc.py`）：
 
 ```text
-.avc\avc.cmd -p . status
+python3 .avc/avc.py -p . status
 ```
 
-Mac / Linux 則用：`python3 .avc/avc.py -p . status`
+Windows 則用：`.avc\avc.cmd -p . status`
 
 若專案裡還沒有那個啟動檔，就用「時光本」主程式（**路徑請換成你自己電腦上的位置，不要沿用別人的使用者名稱**）：
 
@@ -50,7 +50,7 @@ Mac / Linux 優先 `python3`。路徑含空白要加引號。
 
 ## 指令
 
-把 `AVC` 換成 `.avc\avc.cmd`（在專案內，建議用這個）或主程式 `python -m avc`（在你自己的時光本資料夾）：
+把 `AVC` 換成 `python3 .avc/avc.py`（在專案內，建議用這個）或主程式 `python -m avc`（在你自己的時光本資料夾）：
 
 ```text
 AVC init --name "專案名稱" --agent cursor
