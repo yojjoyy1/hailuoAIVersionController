@@ -11,6 +11,7 @@ from avc.platform_util import enable_utf8
 from avc.store import (
     AvcError,
     add_message,
+    autohook,
     clear_database,
     compare,
     end_session,
@@ -177,6 +178,15 @@ def cmd_projects(_args) -> int:
     return 0
 
 
+def cmd_autohook(args) -> int:
+    try:
+        result = autohook(_root_from_args(args), args.event)
+    except Exception as e:
+        result = {"ok": True, "error": str(e)}
+    _print_json(result)
+    return 0
+
+
 def cmd_web(args) -> int:
     from pathlib import Path
 
@@ -185,6 +195,7 @@ def cmd_web(args) -> int:
         install_project_skill,
         install_tool_repo_skills,
         refresh_existing_user_skills,
+        sync_project_memory,
         write_bootstrap,
     )
     from avc.web import serve
@@ -206,7 +217,9 @@ def cmd_web(args) -> int:
         # build (e.g. use .avc\avc.cmd instead of a missing `py` launcher).
         try:
             info = project_info(root)
-            install_project_skill(root, info.get("agent") or "cursor")
+            agent = info.get("agent") or "cursor"
+            install_project_skill(root, agent)
+            sync_project_memory(root, agent)
         except Exception:
             pass
     serve(host=args.host, port=args.port, open_browser=not args.no_open)
@@ -280,6 +293,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("projects", help="列出已登記的專案")
     s.set_defaults(func=cmd_projects)
+
+    s = sub.add_parser("_autohook", help=argparse.SUPPRESS)
+    s.add_argument("event", choices=["session-begin", "autosave", "session-finish"])
+    s.set_defaults(func=cmd_autohook)
 
     s = sub.add_parser("web", help="開啟本機網頁")
     s.add_argument("--host", default="127.0.0.1")

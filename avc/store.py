@@ -10,6 +10,7 @@ from avc.skillpack import (
     install_project_skill,
     install_user_skill,
     normalize_agent,
+    sync_project_memory,
     write_bootstrap,
 )
 
@@ -144,6 +145,7 @@ def init_project(root: Path, name: str, agent: str = "cursor") -> dict:
     write_bootstrap(root)
     skills = install_project_skill(root, agent)
     install_user_skill(agent)
+    sync_project_memory(root, agent)
     if not existed:
         rec = create_record(root, "起始狀態", "開始使用時光本時的資料夾內容", kind="baseline")
         return {
@@ -634,11 +636,13 @@ def set_agent(root: Path, agent: str) -> dict:
     write_bootstrap(root)
     skills = install_project_skill(root, agent)
     user_skills = install_user_skill(agent)
+    memory = sync_project_memory(root, agent)
     return {
         "agent": agent,
         "agent_label": AGENT_LABELS[agent],
         "skills": skills,
         "user_skills": user_skills,
+        "memory": memory,
     }
 
 
@@ -724,3 +728,44 @@ def project_pulse(root: Path) -> dict:
     data["working"] = working_fingerprint(root)
     data["stamp"] = data["db_stamp"] + "||" + data["working"]
     return data
+
+
+# ---------------------------------------------------------------------------
+# Claude Code hook 專用：讓「改檔就自動記錄」不再靠模型自己記得。
+# 由 .claude/settings.json 的 SessionStart / Stop / SessionEnd 呼叫。
+# 原則：無論如何都不要讓 Claude Code 中斷，任何錯誤都安靜吞掉、回傳 ok。
+# ---------------------------------------------------------------------------
+
+def _autosave(root: Path) -> dict:
+    st = status(root)
+    if not (st.get("added") or st.get("removed") or st.get("modified")):
+        return {"ok": True, "saved": False}
+    label = "自動記錄 " + utcnow()[:16].replace("T", " ")
+    rec = save_user_record(root, label=label, note="Claude Code 自動記錄")
+    return {"ok": True, "saved": True, "record_id": rec.get("id")}
+
+
+def autohook(root: Path, event: str) -> dict:
+    try:
+        if not is_initialized(root):
+            return {"ok": True, "skipped": "not-a-project"}
+    except Exception:
+        return {"ok": True, "skipped": "not-a-project"}
+    try:
+        if event == "session-begin":
+            st = status(root)
+            if not st.get("active_session_id"):
+                title = "Claude Code " + utcnow()[:16].replace("T", " ")
+                start_session(root, title=title, source="Claude Code", agent="claude")
+            return {"ok": True}
+        if event == "autosave":
+            return _autosave(root)
+        if event == "session-finish":
+            _autosave(root)
+            st = status(root)
+            if st.get("active_session_id"):
+                end_session(root)
+            return {"ok": True}
+        return {"ok": True, "skipped": "unknown-event"}
+    except Exception as e:
+        return {"ok": True, "error": str(e)}
